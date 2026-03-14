@@ -45,7 +45,7 @@ helm repo update
 helm install opensearch-operator opensearch-operator/opensearch-operator \
   --create-namespace \
   --namespace openchoreo-observability-plane \
-  --version 2.8.0
+  --version 2.8.4
 ```
 
 ## Deploy Helm chart
