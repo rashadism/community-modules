@@ -2,7 +2,8 @@ apiVersion: v1
 data:
   values.yaml: |
     commonAnnotations: {}
-    commonLabels: {}
+    commonLabels:
+      openchoreo.dev/system-component: gateway
     fullnameOverride: ""
     gateway:
       config:
@@ -338,6 +339,10 @@ data:
             http: 8080
             https: 8443
           type: ClusterIP
+      gatewayRuntime:
+        deployment:
+          podLabels:
+            openchoreo.dev/system-component: gateway
     imagePullSecrets: []
     nameOverride: ""
     serviceAccount:

@@ -505,41 +505,91 @@ The following values control gateway behavior in the data plane Helm chart:
 | `gateway.tls.certificateRefs` | string | `"openchoreo-gateway-tls"`     | Secret name for the TLS certificate                                      |
 | `gateway.infrastructure`      | object | `{}`                           | Cloud provider load balancer annotations                                 |
 
-### DataPlane CR Gateway Configuration
+### ClusterDataPlane/DataPlane CR Gateway Configuration
 
-The DataPlane CR defines gateway metadata used by the control plane for endpoint URL resolution:
+After the Kong Gateway CR is created, register it as an ingress gateway on the ClusterDataPlane/DataPlane CR so the control plane knows how to resolve endpoint URLs and route traffic.
 
-```yaml
-apiVersion: openchoreo.dev/v1alpha1
-kind: DataPlane
-metadata:
-  name: default
-spec:
-  gateway:
-    publicVirtualHost: "example.com" # Domain for public endpoints
-    publicHTTPSPort: 19443 # Port included in endpoint URLs
-    publicHTTPPort: 19080
-    publicGatewayName: "gateway-default" # Must match the Gateway CR name
-    publicGatewayNamespace: "openchoreo-data-plane"
-    organizationVirtualHost: "org.example.com" # Optional: org-scoped domain
-    organizationHTTPSPort: 19444
+The gateway configuration uses `spec.gateway.ingress` with named gateway slots (`external`, `internal`, etc.). Each slot references a Gateway CR and specifies the HTTP listener details:
+
+```bash
+kubectl patch clusterdataplane default --type merge -p '{
+  "spec": {
+    "gateway": {
+      "ingress": {
+        "external": {
+          "name": "gateway-default",
+          "namespace": "openchoreo-data-plane",
+          "http": {
+            "host": "openchoreoapis.localhost",
+            "listenerName": "http",
+            "port": 19080
+          }
+        }
+      }
+    }
+  }
+}'
 ```
+
+| Field                  | Description                                                                                             |
+| ---------------------- | ------------------------------------------------------------------------------------------------------- |
+| `name`                 | Name of the Gateway CR. Must match the Gateway resource created in the data plane                       |
+| `namespace`            | Namespace where the Gateway CR is deployed                                                              |
+| `http.host`            | Hostname used for routing. For ClusterIP gateways, use `<service-name>.<namespace>` (in-cluster DNS)    |
+| `http.listenerName`    | Named listener on the Gateway CR (e.g., `http`)                                                         |
+| `http.port`            | Port the gateway service listens on                                                                     |
+
+> **Note:** For internal (ClusterIP) gateways, set `http.host` to the in-cluster DNS name of the gateway service (e.g., `gateway-internal.openchoreo-data-plane`). For LoadBalancer gateways, use the external hostname or IP assigned by the cloud provider.
 
 ### Environment-Level Overrides
 
-Environments can override gateway configuration from the DataPlane:
+Environments can override the ClusterDataPlane/DataPlane gateway configuration with dedicated gateway resources. This is useful when different environments (e.g., production) need their own gateway with separate listeners, ports, or hostnames.
+
+**1. Create a dedicated Gateway CR for the environment:**
 
 ```yaml
-apiVersion: openchoreo.dev/v1alpha1
-kind: Environment
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
 metadata:
-  name: production
+  name: gateway-production
+  namespace: openchoreo-data-plane
+  labels:
+    app.kubernetes.io/component: gateway
+    app.kubernetes.io/part-of: openchoreo
 spec:
-  gateway:
-    publicVirtualHost: "prod.example.com" # Overrides DataPlane value
+  gatewayClassName: kong
+  listeners:
+    - name: http
+      port: 19081
+      protocol: HTTP
+      allowedRoutes:
+        namespaces:
+          from: All
 ```
 
-If `publicVirtualHost` is set on the Environment, its gateway config takes full precedence over the DataPlane config.
+**2. Patch the Environment CR to reference the dedicated gateway:**
+
+```bash
+kubectl patch environment production -n default --type merge -p '{
+  "spec": {
+    "gateway": {
+      "ingress": {
+        "external": {
+          "name": "gateway-production",
+          "namespace": "openchoreo-data-plane",
+          "http": {
+            "host": "openchoreoapis.localhost",
+            "listenerName": "http",
+            "port": 19081
+          }
+        }
+      }
+    }
+  }
+}'
+```
+
+When gateway configuration is set on an Environment, it takes full precedence over the ClusterDataPlane/DataPlane gateway config for that environment.
 
 ### Port Configuration
 
@@ -550,7 +600,7 @@ Kong must listen on the same ports that the Gateway CR declares. The port mappin
 | Kong `KONG_PROXY_LISTEN` | 19080 | 19443 | Kong Helm `--set gateway.env.proxy_listen`                           |
 | Kong Service ports       | 19080 | 19443 | Kong Helm `--set gateway.proxy.http.servicePort` / `tls.servicePort` |
 | Gateway CR listeners     | 19080 | 19443 | Data plane Helm `gateway.httpPort` / `gateway.httpsPort`             |
-| DataPlane CR             | 19080 | 19443 | `spec.gateway.publicHTTPPort` / `publicHTTPSPort`                    |
+| DataPlane CR             | 19080 | 19443 | `spec.gateway.ingress.external.http.port`                            |
 
 A mismatch at any layer will cause listener errors or broken endpoint URLs.
 
