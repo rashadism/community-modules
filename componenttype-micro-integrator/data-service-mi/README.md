@@ -2,7 +2,7 @@
 
 A REST API that exposes employee data from a MySQL database, built with WSO2 Micro Integrator. This sample deploys three components on OpenChoreo: a MySQL database, a one-time database initializer, and the MI data service.
 
-**Source:** [wso2/choreo-samples — mi-data-service](https://github.com/wso2/choreo-samples/tree/main/micro-integrator/data-service-mi)
+**Source:** [openchoreo/community-modules — data-service-mi](https://github.com/openchoreo/community-modules/tree/main/componenttype-micro-integrator/data-service-mi)
 
 ## Endpoints
 
@@ -51,9 +51,9 @@ You should see both `mysql-development-*` and `db-init-development-*` reach `1/1
 3. Complete the required fields in the create form: enter `mi-data-service` as the **Component Name**.
 
 4. Set the deployment source to **Build from Source**, select **wso2-micro-integrator** as the build workflow, then provide the Git repository URL, branch, and application path:
-   - Repository URL: `https://github.com/wso2/choreo-samples`
+   - Repository URL: `https://github.com/openchoreo/community-modules`
    - Branch: `main`
-   - Application path: `./micro-integrator/data-service-mi/micro-integrator-ds`
+   - Application path: `./componenttype-micro-integrator/data-service-mi/micro-integrator-ds`
 
 5. Review the provided information and click **Create**.
 
@@ -72,6 +72,10 @@ Before deploying, configure the following environment variables in the Backstage
 
 ### Step 4: Get the invoke URL
 
+Read the host, path, and port from the ReleaseBinding endpoint status. Use either the `http` or `https` block depending on which scheme you want to invoke.
+
+**HTTP:**
+
 ```bash
 HOSTNAME=$(kubectl get releasebinding -n default \
   -l openchoreo.dev/component=mi-data-service \
@@ -81,13 +85,35 @@ PATH_PREFIX=$(kubectl get releasebinding -n default \
   -l openchoreo.dev/component=mi-data-service \
   -o jsonpath='{.items[0].status.endpoints[0].externalURLs.http.path}')
 
-echo "Base URL: http://${HOSTNAME}:19080${PATH_PREFIX}"
+PORT=$(kubectl get releasebinding -n default \
+  -l openchoreo.dev/component=mi-data-service \
+  -o jsonpath='{.items[0].status.endpoints[0].externalURLs.http.port}')
+
+echo "Base URL: http://${HOSTNAME}:${PORT}${PATH_PREFIX}"
+```
+
+**HTTPS:**
+
+```bash
+HOSTNAME=$(kubectl get releasebinding -n default \
+  -l openchoreo.dev/component=mi-data-service \
+  -o jsonpath='{.items[0].status.endpoints[0].externalURLs.https.host}')
+
+PATH_PREFIX=$(kubectl get releasebinding -n default \
+  -l openchoreo.dev/component=mi-data-service \
+  -o jsonpath='{.items[0].status.endpoints[0].externalURLs.https.path}')
+
+PORT=$(kubectl get releasebinding -n default \
+  -l openchoreo.dev/component=mi-data-service \
+  -o jsonpath='{.items[0].status.endpoints[0].externalURLs.https.port}')
+
+echo "Base URL: https://${HOSTNAME}:${PORT}${PATH_PREFIX}"
 ```
 
 ## Try it out
 
 Replace `<BASE_URL>` with the value from the step above, for example:
-`http://development-default.openchoreoapis.localhost:19080/mi-data-service-endpoint-1`
+`http://development-default.openchoreoapis.localhost:8443/mi-data-service-endpoint-1`
 
 ### Read an employee
 

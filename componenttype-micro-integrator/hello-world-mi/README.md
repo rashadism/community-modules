@@ -2,7 +2,7 @@
 
 A minimal REST API that responds with `{"Hello": "World"}` — a good starting point for deploying WSO2 Micro Integrator projects on OpenChoreo.
 
-**Source:** [wso2/choreo-samples — hello-world-mi](https://github.com/wso2/choreo-samples/tree/main/hello-world-mi)
+**Source:** [openchoreo/community-modules — hello-world-mi](https://github.com/openchoreo/community-modules/tree/main/componenttype-micro-integrator/hello-world-mi)
 
 ## Endpoint
 
@@ -37,9 +37,9 @@ kubectl apply \
    ![Create component form](./step-03-create-form.png)
 
 4. Set the deployment source to **Build from Source**, select **wso2-micro-integrator** as the build workflow, then provide the Git repository URL, branch, and application path.
-   - Repository URL: `https://github.com/wso2/choreo-samples`
+   - Repository URL: `https://github.com/openchoreo/community-modules`
    - Branch: `main`
-   - Application path: `./micro-integrator/hello-world-mi`
+   - Application path: `./componenttype-micro-integrator/hello-world-mi`
 
    ![Build from source configuration](./step-04-build-source.png)
 
@@ -72,10 +72,10 @@ spec:
     name: micro-integrator-builder
     parameters:
       repository:
-        url: "https://github.com/wso2/choreo-samples"
+        url: "https://github.com/openchoreo/community-modules"
         revision:
           branch: "main"
-        appPath: "./micro-integrator/hello-world-mi"
+        appPath: "./componenttype-micro-integrator/hello-world-mi"
 ---
 apiVersion: openchoreo.dev/v1alpha1
 kind: WorkflowRun
@@ -90,10 +90,10 @@ spec:
     name: micro-integrator-builder
     parameters:
       repository:
-        url: "https://github.com/wso2/choreo-samples"
+        url: "https://github.com/openchoreo/community-modules"
         revision:
           branch: "main"
-        appPath: "./micro-integrator/hello-world-mi"
+        appPath: "./componenttype-micro-integrator/hello-world-mi"
 EOF
 ```
 
@@ -113,6 +113,10 @@ kubectl get deployment -A -l openchoreo.dev/component=hello-world-mi
 
 #### 4. Get the URL and invoke
 
+Read the host, path, and port from the ReleaseBinding endpoint status. Use either the `http` or `https` block depending on which scheme you want to invoke.
+
+**HTTP:**
+
 ```bash
 HOSTNAME=$(kubectl get releasebinding -n default \
   -l openchoreo.dev/component=hello-world-mi \
@@ -122,7 +126,29 @@ PATH_PREFIX=$(kubectl get releasebinding -n default \
   -l openchoreo.dev/component=hello-world-mi \
   -o jsonpath='{.items[0].status.endpoints[0].externalURLs.http.path}')
 
-curl "http://${HOSTNAME}:19080${PATH_PREFIX}/HelloWorld"
+PORT=$(kubectl get releasebinding -n default \
+  -l openchoreo.dev/component=hello-world-mi \
+  -o jsonpath='{.items[0].status.endpoints[0].externalURLs.http.port}')
+
+curl "http://${HOSTNAME}:${PORT}${PATH_PREFIX}/HelloWorld"
+```
+
+**HTTPS:**
+
+```bash
+HOSTNAME=$(kubectl get releasebinding -n default \
+  -l openchoreo.dev/component=hello-world-mi \
+  -o jsonpath='{.items[0].status.endpoints[0].externalURLs.https.host}')
+
+PATH_PREFIX=$(kubectl get releasebinding -n default \
+  -l openchoreo.dev/component=hello-world-mi \
+  -o jsonpath='{.items[0].status.endpoints[0].externalURLs.https.path}')
+
+PORT=$(kubectl get releasebinding -n default \
+  -l openchoreo.dev/component=hello-world-mi \
+  -o jsonpath='{.items[0].status.endpoints[0].externalURLs.https.port}')
+
+curl "https://${HOSTNAME}:${PORT}${PATH_PREFIX}/HelloWorld"
 ```
 
 Expected response:
