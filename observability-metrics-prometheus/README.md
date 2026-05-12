@@ -27,7 +27,7 @@ helm upgrade --install observability-metrics-prometheus \
   oci://ghcr.io/openchoreo/helm-charts/observability-metrics-prometheus \
   --create-namespace \
   --namespace openchoreo-observability-plane \
-  --version 0.5.1
+  --version 0.5.2
 ```
 
 ### Multi-cluster topology
@@ -39,7 +39,7 @@ helm upgrade --install observability-metrics-prometheus \
   oci://ghcr.io/openchoreo/helm-charts/observability-metrics-prometheus \
   --create-namespace \
   --namespace openchoreo-observability-plane \
-  --version 0.5.1 \
+  --version 0.5.2 \
   --set global.installationMode="multiClusterReceiver" \
   --set-json 'prometheusCustomizations.http.hostnames=["prometheus.observability.example.com"]'
 ```
@@ -53,18 +53,21 @@ helm upgrade --install observability-metrics-prometheus \
   oci://ghcr.io/openchoreo/helm-charts/observability-metrics-prometheus \
   --create-namespace \
   --namespace openchoreo-observability-plane \
-  --version 0.5.1 \
+  --version 0.5.2 \
   --set global.installationMode="multiClusterExporter" \
   --set prometheusCustomizations.http.observabilityPlaneUrl=http://prometheus.observability.example.com:9091/api/v1/write \
   --set kube-prometheus-stack.prometheus.enabled=false \
   --set kube-prometheus-stack.alertmanager.enabled=false
 ```
 
+> **Note:** If the observability plane gateway uses self-signed certificates, remote write will fail with `x509: certificate signed by unknown authority`. Add `--set prometheusCustomizations.remoteWrite.tlsInsecureSkipVerify=true` to skip TLS verification.
+
 #### Exporter configuration options
 
-| Option                                                | Default    | Description                                                                           |
-| ----------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------- |
-| `prometheusCustomizations.http.observabilityPlaneUrl` | (required) | Central receiver URL for remote write. The URL hostname is used as the `Host` header. |
+| Option                                                          | Default    | Description                                                                           |
+| --------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------- |
+| `prometheusCustomizations.http.observabilityPlaneUrl`           | (required) | Central receiver URL for remote write. The URL hostname is used as the `Host` header. |
+| `prometheusCustomizations.remoteWrite.tlsInsecureSkipVerify`    | `false`    | Skip TLS certificate verification for self-signed certs on the receiver.              |
 
 ## Verification
 
