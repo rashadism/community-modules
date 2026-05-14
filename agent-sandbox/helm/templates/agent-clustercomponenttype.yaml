@@ -1,7 +1,7 @@
 apiVersion: openchoreo.dev/v1alpha1
 kind: ClusterComponentType
 metadata:
-  name: agent
+  name: ai-agent
   annotations:
     openchoreo.dev/description: "An AI agent workload with kernel-level sandbox isolation via kubernetes-sigs/agent-sandbox"
 spec:
