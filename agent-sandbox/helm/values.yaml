@@ -17,7 +17,7 @@ upstream:
   # manifests before the rest of the chart is deployed.
   install: true
   # version: the kubernetes-sigs/agent-sandbox release tag to install.
-  version: "v0.4.3"
+  version: "v0.4.6"
   # manifestURL: override the full URL for the core manifest; leave empty
   # to auto-build from the version.
   manifestURL: ""
