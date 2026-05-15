@@ -113,7 +113,7 @@ func buildAlertExpression(rule AlertRuleParams) (string, error) {
 	case MetricTypeMemoryUsage:
 		return buildMemoryUsageAlertExpression(rule.ComponentUID, rule.ProjectUID, rule.EnvironmentUID, operator, rule.Threshold, rule.Window), nil
 	case MetricTypeBudget:
-		return buildBudgetAlertExpression(rule.ComponentUID, rule.ProjectUID, rule.EnvironmentUID, operator, rule.Threshold, rule.Window), nil
+		return buildBudgetAlertExpression(rule.ComponentUID, rule.ProjectUID, rule.EnvironmentUID, operator, rule.Threshold, rule.Window)
 	default:
 		return "", fmt.Errorf("unsupported metric type: %s", rule.Metric)
 	}
@@ -147,31 +147,35 @@ func buildMemoryUsageAlertExpression(componentUID, projectUID, environmentUID, o
 }
 
 // buildBudgetAlertExpression builds a PromQL expression for budget alerts.
-// The window parameter is used for both increase() and avg_over_time() calculations.
+// Cost is calculated from configured CPU and memory requests (reserved capacity)
 // The threshold is in USD and represents the total cost for the window period.
-func buildBudgetAlertExpression(componentUID, projectUID, environmentUID, operator string, threshold float64, window string) string {
+func buildBudgetAlertExpression(componentUID, projectUID, environmentUID, operator string, threshold float64, window string) (string, error) {
 	labelFilter := BuildComponentLabelFilter(componentUID, projectUID, environmentUID)
 
-	// CPU Cost = (CPU seconds used / 3600) * CPU hourly cost
+	// Scale factor converts hourly cost to the window duration.
+	windowDuration, err := time.ParseDuration(window)
+	if err != nil {
+		return "", fmt.Errorf("invalid window duration %q: %w", window, err)
+	}
+	if windowDuration <= 0 {
+		return "", fmt.Errorf("window duration must be positive, got: %s", window)
+	}
+	scale := windowDuration.Seconds() / 3600.0
+
+	// CPU Cost = avg(requested cores over window) * CPU hourly cost * window hours
 	cpuCostExpr := fmt.Sprintf(`sum(
-        (
-            increase(container_cpu_usage_seconds_total{container!=""}[%s]) / 3600
-        )
+        avg_over_time(kube_pod_container_resource_requests{resource="cpu",job="kube-state-metrics"}[%s])
         * on(node) group_left
         node_cpu_hourly_cost
         * on(pod, namespace) group_left(label_openchoreo_dev_component_uid,label_openchoreo_dev_project_uid,label_openchoreo_dev_environment_uid)
         kube_pod_labels{job="kube-state-metrics",%s}
-    )`, window, labelFilter)
+        * %f
+    )`, window, labelFilter, scale)
 
-	// RAM Cost = (Avg memory in GB) * RAM hourly cost * window duration in hours
-	// Parse window duration to calculate the scale factor
-	windowDuration, _ := time.ParseDuration(window)
-	windowSeconds := windowDuration.Seconds()
-	scale := windowSeconds / 3600.0
-
+	// RAM Cost = avg(requested bytes over window) in GB * RAM hourly cost * window hours
 	ramCostExpr := fmt.Sprintf(`sum(
         (
-            avg_over_time(container_memory_working_set_bytes{container!=""}[%s]) / (1024*1024*1024)
+            avg_over_time(kube_pod_container_resource_requests{resource="memory",job="kube-state-metrics"}[%s]) / (1024*1024*1024)
         )
         * on(node) group_left
         node_ram_hourly_cost
@@ -180,7 +184,7 @@ func buildBudgetAlertExpression(componentUID, projectUID, environmentUID, operat
         * %f
     )`, window, labelFilter, scale)
 
-	return fmt.Sprintf(`(%s + %s) %s %v`, cpuCostExpr, ramCostExpr, operator, threshold)
+	return fmt.Sprintf(`(%s + %s) %s %v`, cpuCostExpr, ramCostExpr, operator, threshold), nil
 }
 
 // convertOperator converts the alert rule operator to PromQL comparison operator.
