@@ -8,7 +8,7 @@ This module installs the [kubernetes-sigs/agent-sandbox](https://github.com/kube
 
 - Installs the upstream `kubernetes-sigs/agent-sandbox` controller and CRDs on the data plane cluster via a Helm pre-install hook
 - Grants the data plane `cluster-agent` service account permissions to manage `SandboxTemplate`, `SandboxClaim`, `SandboxWarmPool`, and `Sandbox` resources
-- The core OpenChoreo `agent` ClusterComponentType renders the sandbox resources; this module provides the upstream controller that fulfills them on the data plane
+- Registers the `ai-agent` ClusterComponentType (`proxy/ai-agent`) that renders sandbox resources via the standard OpenChoreo pipeline; this module provides the upstream controller that fulfills them on the data plane
 
 ## Upstream CRDs installed
 
@@ -72,8 +72,9 @@ kubectl get clusterrole openchoreo-agent-sandbox-access
 | `dataPlaneNamespace` | `openchoreo-data-plane` | Data plane namespace (for RBAC binding) |
 | `dataPlaneServiceAccount` | `cluster-agent-dataplane` | Data plane SA for RBAC |
 | `upstream.install` | `true` | Install upstream controller via pre-install Job |
-| `upstream.version` | `v0.4.3` | Upstream release version |
-| `upstream.manifestURL` | `""` | Override manifest URL (auto-built from version if empty) |
+| `upstream.version` | `v0.4.6` | Upstream release version |
+| `upstream.manifestURL` | `""` | Override core manifest URL (auto-built from version if empty) |
+| `upstream.extensionsManifestURL` | `""` | Override extensions manifest URL (auto-built from version if empty) |
 
 ## Uninstall
 

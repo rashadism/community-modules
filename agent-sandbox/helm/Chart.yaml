@@ -21,4 +21,4 @@ sources:
 annotations:
   openchoreo.dev/module-category: AI
   openchoreo.dev/upstream-controller: "kubernetes-sigs/agent-sandbox"
-  openchoreo.dev/upstream-version: "v0.4.3"
+  openchoreo.dev/upstream-version: "v0.4.6"
