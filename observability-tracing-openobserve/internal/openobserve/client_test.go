@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -964,5 +965,219 @@ func TestParseSpanDetail_NoExtraAttributes(t *testing.T) {
 	}
 	if len(detail.ResourceAttributes) != 0 {
 		t.Errorf("expected 0 resource attributes, got %d: %v", len(detail.ResourceAttributes), detail.ResourceAttributes)
+	}
+}
+
+func TestExecuteSearchQuery_StreamNotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"code":20002,"message":"Search stream not found: default"}`))
+	}))
+	defer server.Close()
+
+	client := newTestClient(server.URL)
+	_, err := client.executeSearchQuery(context.Background(), []byte(`{}`))
+	if !errors.Is(err, ErrStreamNotFound) {
+		t.Fatalf("expected ErrStreamNotFound, got %v", err)
+	}
+}
+
+func TestGetTraces_StreamNotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"code":20002,"message":"Search stream not found: default"}`))
+	}))
+	defer server.Close()
+
+	client := newTestClient(server.URL)
+	result, err := client.GetTraces(context.Background(), TracesQueryParams{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil empty result")
+	}
+	if len(result.Traces) != 0 || result.Total != 0 {
+		t.Fatalf("expected empty result, got %+v", result)
+	}
+}
+
+func TestGetSpans_StreamNotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"code":20002,"message":"Search stream not found: default"}`))
+	}))
+	defer server.Close()
+
+	client := newTestClient(server.URL)
+	result, err := client.GetSpans(context.Background(), TracesQueryParams{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil empty result")
+	}
+	if len(result.Spans) != 0 || result.Total != 0 {
+		t.Fatalf("expected empty result, got %+v", result)
+	}
+}
+
+func TestIsStreamNotFound(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+		want bool
+	}{
+		{"matching code", `{"code":20002,"message":"..."}`, true},
+		{"other code", `{"code":20001,"message":"..."}`, false},
+		{"no code field", `{"message":"foo"}`, false},
+		{"empty body", ``, false},
+		{"malformed json", `{not json`, false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := isStreamNotFound([]byte(tc.body))
+			if got != tc.want {
+				t.Fatalf("isStreamNotFound(%q) = %v, want %v", tc.body, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestGetSpanDetail_StreamNotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"code":20002,"message":"Search stream not found: default"}`))
+	}))
+	defer server.Close()
+
+	client := newTestClient(server.URL)
+	_, err := client.GetSpanDetail(context.Background(), TracesQueryParams{
+		TraceID: "trace-1",
+		SpanID:  "span-1",
+	})
+	if err == nil {
+		t.Fatal("expected error for stream not found")
+	}
+	if !strings.Contains(err.Error(), "span not found") {
+		t.Errorf("expected 'span not found' error, got: %v", err)
+	}
+}
+
+func TestGetTraces_StreamNotFound_CountQueryOnly(t *testing.T) {
+	startNs := time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC).UnixNano()
+	endNs := time.Date(2025, 1, 1, 12, 0, 1, 0, time.UTC).UnixNano()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if isCountQuery(r) {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"code":20002,"message":"Search stream not found: default"}`))
+			return
+		}
+		resp := OpenObserveResponse{
+			Took: 5,
+			Hits: []map[string]interface{}{
+				{
+					"trace_id":       "trace-1",
+					"span_id":        "span-1",
+					"operation_name": "op-1",
+					"start_time":     json.Number(fmt.Sprintf("%d", startNs)),
+					"end_time":       json.Number(fmt.Sprintf("%d", endNs)),
+					"duration":       json.Number(fmt.Sprintf("%d", endNs-startNs)),
+					"service.name":   "svc-1",
+				},
+				{
+					"trace_id":       "trace-2",
+					"span_id":        "span-2",
+					"operation_name": "op-2",
+					"start_time":     json.Number(fmt.Sprintf("%d", startNs)),
+					"end_time":       json.Number(fmt.Sprintf("%d", endNs)),
+					"duration":       json.Number(fmt.Sprintf("%d", endNs-startNs)),
+					"service.name":   "svc-2",
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	client := newTestClient(server.URL)
+	result, err := client.GetTraces(context.Background(), TracesQueryParams{
+		Scope:     Scope{Namespace: "ns"},
+		StartTime: time.Unix(0, startNs),
+		EndTime:   time.Unix(0, endNs),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if len(result.Traces) != 2 {
+		t.Errorf("expected 2 traces, got %d", len(result.Traces))
+	}
+	if result.Total != len(result.Traces) {
+		t.Errorf("expected Total == len(Traces) (%d), got %d",
+			len(result.Traces), result.Total)
+	}
+}
+
+func TestGetSpans_StreamNotFound_CountQueryOnly(t *testing.T) {
+	startNs := time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC).UnixNano()
+	endNs := time.Date(2025, 1, 1, 12, 0, 1, 0, time.UTC).UnixNano()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if isCountQuery(r) {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"code":20002,"message":"Search stream not found: default"}`))
+			return
+		}
+		resp := OpenObserveResponse{
+			Took: 3,
+			Hits: []map[string]interface{}{
+				{
+					"span_id":        "span-1",
+					"operation_name": "op-1",
+					"span_kind":      "SERVER",
+					"start_time":     json.Number(fmt.Sprintf("%d", startNs)),
+					"end_time":       json.Number(fmt.Sprintf("%d", endNs)),
+					"duration":       json.Number(fmt.Sprintf("%d", endNs-startNs)),
+				},
+				{
+					"span_id":        "span-2",
+					"operation_name": "op-2",
+					"span_kind":      "CLIENT",
+					"start_time":     json.Number(fmt.Sprintf("%d", startNs)),
+					"end_time":       json.Number(fmt.Sprintf("%d", endNs)),
+					"duration":       json.Number(fmt.Sprintf("%d", endNs-startNs)),
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	client := newTestClient(server.URL)
+	result, err := client.GetSpans(context.Background(), TracesQueryParams{
+		TraceID:   "trace-1",
+		Scope:     Scope{Namespace: "ns"},
+		StartTime: time.Unix(0, startNs),
+		EndTime:   time.Unix(0, endNs),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if len(result.Spans) != 2 {
+		t.Errorf("expected 2 spans, got %d", len(result.Spans))
+	}
+	if result.Total != len(result.Spans) {
+		t.Errorf("expected Total == len(Spans) (%d), got %d",
+			len(result.Spans), result.Total)
 	}
 }
