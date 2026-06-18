@@ -1,6 +1,6 @@
 CFG_DIR := internal/api
 OAPI_CODEGEN_VERSION ?= v2.5.1
-SPEC := https://raw.githubusercontent.com/openchoreo/openchoreo.github.io/refs/heads/main/static/api-specs/observability-metrics-adapter.yaml
+SPEC := https://raw.githubusercontent.com/openchoreo/openchoreo/main/openapi/observability-metrics-adapter.yaml
 GOBIN_DIR := $(or $(shell go env GOBIN),$(shell go env GOPATH)/bin)
 
 .PHONY: oapi-codegen-install openapi-codegen unit-test

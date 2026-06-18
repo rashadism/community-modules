@@ -5,7 +5,7 @@ CFG_DIR := internal/api
 OAPI_CODEGEN_VERSION ?= v2.5.1
 # Pinned to the same metrics adapter spec the sibling AWS CloudWatch metrics
 # module generates from. Bump deliberately when the upstream spec changes.
-SPEC := https://raw.githubusercontent.com/openchoreo/openchoreo.github.io/refs/heads/main/static/api-specs/observability-metrics-adapter.yaml
+SPEC := https://raw.githubusercontent.com/openchoreo/openchoreo/main/openapi/observability-metrics-adapter.yaml
 GOBIN_DIR := $(or $(shell go env GOBIN),$(shell go env GOPATH)/bin)
 
 .PHONY: oapi-codegen-install openapi-codegen unit-test build run
