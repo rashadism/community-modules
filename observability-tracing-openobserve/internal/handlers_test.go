@@ -355,12 +355,12 @@ func TestToSpanDetailsResponse(t *testing.T) {
 		EndTime:      endTime,
 		DurationNs:   1000000000,
 		ParentSpanID: "span-root",
-		Attributes: []openobserve.SpanAttribute{
-			{Key: "http.method", Value: "GET"},
-			{Key: "http.status_code", Value: "200"},
+		Attributes: map[string]interface{}{
+			"http.method":      "GET",
+			"http.status_code": 200,
 		},
-		ResourceAttributes: []openobserve.SpanAttribute{
-			{Key: "service.name", Value: "my-service"},
+		ResourceAttributes: map[string]interface{}{
+			"service.name": "my-service",
 		},
 	}
 
@@ -381,22 +381,18 @@ func TestToSpanDetailsResponse(t *testing.T) {
 	if resp.DurationNs == nil || *resp.DurationNs != 1000000000 {
 		t.Errorf("expected durationNs 1000000000, got %v", resp.DurationNs)
 	}
-	if resp.Attributes == nil || len(*resp.Attributes) != 2 {
-		t.Fatalf("expected 2 attributes, got %v", resp.Attributes)
+	if resp.Attributes == nil {
+		t.Fatal("expected attributes to be populated")
 	}
-	attr0 := (*resp.Attributes)[0]
-	if attr0.Key == nil || *attr0.Key != "http.method" {
-		t.Errorf("expected attribute key 'http.method', got %v", attr0.Key)
+	if (*resp.Attributes)["http.method"] != "GET" {
+		t.Errorf("expected http.method 'GET', got %v", (*resp.Attributes)["http.method"])
 	}
-	if attr0.Value == nil || *attr0.Value != "GET" {
-		t.Errorf("expected attribute value 'GET', got %v", attr0.Value)
+	if v, ok := (*resp.Attributes)["http.status_code"].(int); !ok || v != 200 {
+		t.Errorf("expected http.status_code int(200), got %T(%v)",
+			(*resp.Attributes)["http.status_code"], (*resp.Attributes)["http.status_code"])
 	}
-	if resp.ResourceAttributes == nil || len(*resp.ResourceAttributes) != 1 {
-		t.Fatalf("expected 1 resource attribute, got %v", resp.ResourceAttributes)
-	}
-	resAttr0 := (*resp.ResourceAttributes)[0]
-	if resAttr0.Key == nil || *resAttr0.Key != "service.name" {
-		t.Errorf("expected resource attribute key 'service.name', got %v", resAttr0.Key)
+	if resp.ResourceAttributes == nil || (*resp.ResourceAttributes)["service.name"] != "my-service" {
+		t.Errorf("expected resource service.name 'my-service', got %v", resp.ResourceAttributes)
 	}
 }
 
@@ -404,8 +400,8 @@ func TestToSpanDetailsResponse_EmptyAttributes(t *testing.T) {
 	span := &openobserve.SpanDetail{
 		SpanID:             "span-1",
 		SpanName:           "test",
-		Attributes:         []openobserve.SpanAttribute{},
-		ResourceAttributes: []openobserve.SpanAttribute{},
+		Attributes:         map[string]interface{}{},
+		ResourceAttributes: map[string]interface{}{},
 	}
 
 	resp := toSpanDetailsResponse(span)

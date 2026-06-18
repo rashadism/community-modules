@@ -426,26 +426,14 @@ func TestGetSpanDetail(t *testing.T) {
 		t.Errorf("unexpected endTime: %v", span.EndTime)
 	}
 
-	// Check that attributes are populated (http.method, http.status_code)
-	foundHTTPMethod := false
-	for _, attr := range span.Attributes {
-		if attr.Key == "http.method" && attr.Value == "GET" {
-			foundHTTPMethod = true
-		}
-	}
-	if !foundHTTPMethod {
-		t.Error("expected http.method attribute in span attributes")
+	// Check that attributes are populated with native types
+	if span.Attributes["http.method"] != "GET" {
+		t.Errorf("expected http.method=GET in span attributes, got %v", span.Attributes["http.method"])
 	}
 
-	// Check that resource attributes are populated (service.name, resource.version)
-	foundServiceName := false
-	for _, attr := range span.ResourceAttributes {
-		if attr.Key == "service.name" && attr.Value == "my-service" {
-			foundServiceName = true
-		}
-	}
-	if !foundServiceName {
-		t.Error("expected service.name in resource attributes")
+	// Check that resource attributes are populated
+	if span.ResourceAttributes["service.name"] != "my-service" {
+		t.Errorf("expected service.name=my-service in resource attributes, got %v", span.ResourceAttributes["service.name"])
 	}
 }
 
@@ -541,7 +529,7 @@ func TestParseSpanDetail(t *testing.T) {
 		"trace_id":                 "trace-1",
 		"_timestamp":               json.Number("1234567890"),
 		"http.method":              "GET",
-		"http.status_code":         "200",
+		"http.status_code":         200,
 		"service.name":             "my-service",
 		"resource.version":         "v1",
 	}
@@ -559,36 +547,27 @@ func TestParseSpanDetail(t *testing.T) {
 	}
 
 	// Internal fields should be excluded from attributes
-	for _, attr := range detail.Attributes {
-		for _, internal := range internalFields {
-			if attr.Key == internal {
-				t.Errorf("internal field %q should not appear in attributes", internal)
-			}
+	for _, internal := range internalFields {
+		if _, ok := detail.Attributes[internal]; ok {
+			t.Errorf("internal field %q should not appear in attributes", internal)
 		}
 	}
 
-	// http.method and http.status_code should be in attributes (not resource)
-	attrMap := make(map[string]string)
-	for _, attr := range detail.Attributes {
-		attrMap[attr.Key] = attr.Value
+	// http.* stay in attributes with native types (status_code as int, not "200")
+	if detail.Attributes["http.method"] != "GET" {
+		t.Errorf("expected http.method=GET, got %v", detail.Attributes["http.method"])
 	}
-	if attrMap["http.method"] != "GET" {
-		t.Errorf("expected http.method=GET in attributes, got %q", attrMap["http.method"])
-	}
-	if attrMap["http.status_code"] != "200" {
-		t.Errorf("expected http.status_code=200 in attributes, got %q", attrMap["http.status_code"])
+	if v, ok := detail.Attributes["http.status_code"].(int); !ok || v != 200 {
+		t.Errorf("expected http.status_code int(200), got %T(%v)",
+			detail.Attributes["http.status_code"], detail.Attributes["http.status_code"])
 	}
 
-	// service.name and resource.version should be in resource attributes
-	resAttrMap := make(map[string]string)
-	for _, attr := range detail.ResourceAttributes {
-		resAttrMap[attr.Key] = attr.Value
+	// service.* and resource.* go to resource attributes
+	if detail.ResourceAttributes["service.name"] != "my-service" {
+		t.Errorf("expected service.name=my-service, got %v", detail.ResourceAttributes["service.name"])
 	}
-	if resAttrMap["service.name"] != "my-service" {
-		t.Errorf("expected service.name=my-service in resource attributes, got %q", resAttrMap["service.name"])
-	}
-	if resAttrMap["resource.version"] != "v1" {
-		t.Errorf("expected resource.version=v1 in resource attributes, got %q", resAttrMap["resource.version"])
+	if detail.ResourceAttributes["resource.version"] != "v1" {
+		t.Errorf("expected resource.version=v1, got %v", detail.ResourceAttributes["resource.version"])
 	}
 }
 

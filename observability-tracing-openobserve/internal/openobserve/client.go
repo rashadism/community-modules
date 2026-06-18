@@ -101,24 +101,18 @@ type SpansResult struct {
 	TookMs int         `json:"tookMs"`
 }
 
-// SpanAttribute represents a key-value attribute on a span
-type SpanAttribute struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
-}
-
 // SpanDetail represents a single span with full attributes
 type SpanDetail struct {
-	SpanID             string          `json:"spanId"`
-	SpanName           string          `json:"spanName"`
-	SpanKind           string          `json:"spanKind"`
-	StartTime          time.Time       `json:"startTime"`
-	EndTime            time.Time       `json:"endTime"`
-	DurationNs         int64           `json:"durationNs"`
-	ParentSpanID       string          `json:"parentSpanId"`
-	Status             string          `json:"status,omitempty"`
-	Attributes         []SpanAttribute `json:"attributes"`
-	ResourceAttributes []SpanAttribute `json:"resourceAttributes"`
+	SpanID             string                 `json:"spanId"`
+	SpanName           string                 `json:"spanName"`
+	SpanKind           string                 `json:"spanKind"`
+	StartTime          time.Time              `json:"startTime"`
+	EndTime            time.Time              `json:"endTime"`
+	DurationNs         int64                  `json:"durationNs"`
+	ParentSpanID       string                 `json:"parentSpanId"`
+	Status             string                 `json:"status,omitempty"`
+	Attributes         map[string]interface{} `json:"attributes"`
+	ResourceAttributes map[string]interface{} `json:"resourceAttributes"`
 }
 
 // SpanDetailResult represents the response when fetching a single span
@@ -501,20 +495,16 @@ func parseSpanDetail(hit map[string]interface{}) SpanDetail {
 		excludeFields[f] = true
 	}
 
-	attributes := make([]SpanAttribute, 0)
-	resourceAttributes := make([]SpanAttribute, 0)
+	attributes := make(map[string]interface{})
+	resourceAttributes := make(map[string]interface{})
 	for key, value := range hit {
 		if excludeFields[key] {
 			continue
 		}
-		attr := SpanAttribute{
-			Key:   key,
-			Value: fmt.Sprintf("%v", value),
-		}
 		if strings.HasPrefix(key, "service") || strings.HasPrefix(key, "resource") {
-			resourceAttributes = append(resourceAttributes, attr)
+			resourceAttributes[key] = value
 		} else {
-			attributes = append(attributes, attr)
+			attributes[key] = value
 		}
 	}
 	detail.Attributes = attributes
